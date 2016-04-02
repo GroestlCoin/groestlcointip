@@ -144,7 +144,7 @@ class CointipBot(object):
             actions = ctb_action.get_actions(atype='givetip', state='pending', coin=c, ctb=self)
             for a in actions:
                 pending_tips += a.coinval
-            if (ctb_balance - pending_tips) < -0.000001:
+            if (ctb_balance - pending_tips) < -0.00001:
                 raise Exception("CointipBot::self_checks(): CointipBot's %s balance (%s) < total pending tips (%s)" % (c.upper(), ctb_balance, pending_tips))
 
         # Ensure coin balances are positive
@@ -251,18 +251,14 @@ class CointipBot(object):
                 # Mark message as read
                 ctb_misc.praw_call(m.mark_as_read)
 
-        except (HTTPError, ConnectionError, Timeout, timeout) as e:
+        except (HTTPError, ConnectionError, Timeout, RateLimitExceeded, timeout) as e:
             lg.warning("CointipBot::check_inbox(): Reddit is down (%s), sleeping", e)
             time.sleep(self.conf.misc.times.sleep_seconds)
             pass
-        except RateLimitExceeded as e:
-             lg.warning("CointipBot::check_inbox(): rate limit exceeded, sleeping for %s seconds", e.sleep_time) 
-             time.sleep(e.sleep_time)
-             time.sleep(1)
-             pass
         except Exception as e:
             lg.error("CointipBot::check_inbox(): %s", e)
-            raise
+            pass
+            # raise
 
         lg.debug("< CointipBot::check_inbox() DONE")
         return True
@@ -554,15 +550,16 @@ class CointipBot(object):
                 # Refresh exchange rate values
                 self.refresh_ev()
 
+                # Expire pending tips first. fuck waiting for this shit.
+                self.expire_pending_tips()
+
                 # Check personal messages
                 self.check_inbox()
 
-                # Expire pending tips
-                self.expire_pending_tips()
-
                 # Check subreddit comments for tips
-                if self.conf.reddit.scan.my_subreddits or hasattr(self.conf.reddit.scan, 'these_subreddits'):
-                    self.check_subreddits()
+                # or not. fuck that. u mentions only
+#                if self.conf.reddit.scan.my_subreddits or hasattr(self.conf.reddit.scan, 'these_subreddits'):
+#                    self.check_subreddits()
 
                 # Sleep
                 lg.debug("CointipBot::main(): sleeping for %s seconds...", self.conf.misc.times.sleep_seconds)

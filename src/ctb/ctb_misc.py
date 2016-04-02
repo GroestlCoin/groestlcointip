@@ -4,7 +4,7 @@
     ALTcointip is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+    (
 
     ALTcointip is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -38,24 +38,15 @@ def praw_call(prawFunc, *extraArgs, **extraKwArgs):
             res = prawFunc(*extraArgs, **extraKwArgs)
             return res
 
-        except (HTTPError, ConnectionError, Timeout, timeout) as e:
-            if str(e) in [ "400 Client Error: Bad Request", "403 Client Error: Forbidden", "404 Client Error: Not Found" ]:
-                lg.warning("praw_call(): Reddit returned error (%s)", e)
+        except (HTTPError, ConnectionError, Timeout, RateLimitExceeded, timeout) as e:
+            if str(e) == "403 Client Error: Forbidden":
+                lg.warning("praw_call(): 403 forbidden")
                 return False
-            else:
-                lg.warning("praw_call(): Reddit returned error (%s), sleeping...", e)
-                time.sleep(30)
-                pass
-        except APIException as e:
-            if str(e) == "(DELETED_COMMENT) `that comment has been deleted` on field `parent`":
-                lg.warning("praw_call(): deleted comment: %s", e)
+            if str(e) == "404 Client Error: Not Found":
+                lg.warning("praw_call(): 404 not found")
                 return False
-            else:
-                raise
-        except RateLimitExceeded as e:
-            lg.warning("praw_call(): rate limit exceeded, sleeping for %s seconds", e.sleep_time)
-            time.sleep(e.sleep_time)
-            time.sleep(1)
+            lg.warning("praw_call(): Reddit is down (%s), sleeping...", e)
+            time.sleep(30)
             pass
         except Exception as e:
             raise
@@ -71,39 +62,24 @@ def reddit_get_parent_author(comment, reddit, ctb):
     while True:
 
         try:
-
-            parentpermalink = comment.permalink.replace(comment.id, comment.parent_id[3:])
-            commentlinkid = None
-            if hasattr(comment, 'link_id'):
-                commentlinkid = comment.link_id[3:]
-            else:
-                comment2 = reddit.get_submission(comment.permalink).comments[0]
-                commentlinkid = comment2.link_id[3:]
-            parentid = comment.parent_id[3:]
-
-            if commentlinkid == parentid:
-                parentcomment = reddit.get_submission(parentpermalink)
-            else:
-                parentcomment = reddit.get_submission(parentpermalink).comments[0]
-
-            if parentcomment and hasattr(parentcomment, 'author') and parentcomment.author:
+            parentcomment = reddit.get_info(thing_id=comment.parent_id)
+            if (parentcomment.author):
                 lg.debug("< reddit_get_parent_author(%s) -> %s", comment.id, parentcomment.author.name)
                 return parentcomment.author.name
             else:
-                lg.warning("< reddit_get_parent_author(%s) -> NONE", comment.id)
+                lg.warning("reddit_get_parent_author(%s): parent comment was deleted", comment.id)
                 return None
 
-        except (IndexError, APIException) as e:
+        except IndexError as e:
             lg.warning("reddit_get_parent_author(): couldn't get author: %s", e)
             return None
-        except (HTTPError, RateLimitExceeded, timeout) as e:
-            if str(e) in [ "400 Client Error: Bad Request", "403 Client Error: Forbidden", "404 Client Error: Not Found" ]:
-                lg.warning("reddit_get_parent_author(): Reddit returned error (%s)", e)
-                return None
-            else:
-                lg.warning("reddit_get_parent_author(): Reddit returned error (%s), sleeping...", e)
-                time.sleep(ctb.conf.misc.times.sleep_seconds)
-                pass
+        except (RateLimitExceeded, timeout) as e:
+            lg.warning("reddit_get_parent_author(): Reddit is down (%s), sleeping...", e)
+            time.sleep(ctb.conf.misc.times.sleep_seconds)
+            pass
+        except HTTPError as e:
+        	lg.warning("reddit_get_parent_author(): thread or comment not found (%s)", e)
+        	return None
         except Exception as e:
             raise
 

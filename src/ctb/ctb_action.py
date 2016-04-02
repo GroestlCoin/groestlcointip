@@ -184,11 +184,13 @@ class CtbAction(object):
             if not self.fiatval:
                 # Determine fiat value
                 if self.ctb.coin_value(self.ctb.conf.coins[self.coin].unit, self.fiat) <= 0.0:
+                    print("Fiat problem")
                     raise CtbActionExc("CtbAction::__init__(): coin_value returned 0")
                 self.fiatval = self.coinval * self.ctb.coin_value(self.ctb.conf.coins[self.coin].unit, self.fiat)
             elif not self.coinval:
                 # Determine coin value
                 if self.ctb.coin_value(self.ctb.conf.coins[self.coin].unit, self.fiat) <= 0.0:
+                    print("Coin problem")
                     raise CtbActionExc("CtbAction::__init__(): coin_value returned 0")
                 self.coinval = self.fiatval / self.ctb.coin_value(self.ctb.conf.coins[self.coin].unit, self.fiat)
 
@@ -616,7 +618,7 @@ class CtbAction(object):
         # Check if action has been processed
         if check_action(atype=self.type, msg_id=self.msg_id, ctb=self.ctb, is_pending=is_pending):
             # Found action in database, returning
-            lg.warning("CtbAction::givetipt(): duplicate action %s (msg.id %s), ignoring", self.type, self.msg.id)
+            lg.warning("CtbAction::givetip(): duplicate action %s (msg.id %s), ignoring", self.type, self.msg.id)
             return False
 
         # Validate action
